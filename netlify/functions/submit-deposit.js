@@ -3,11 +3,12 @@
 // SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 const json=(statusCode,body)=>({statusCode,headers:{"Content-Type":"application/json","Cache-Control":"no-store"},body:JSON.stringify(body)});
 exports.handler=async(event)=>{
+ console.log("[submit-deposit] request", {method:event.httpMethod, hasOrigin:!!(event.headers.origin||event.headers.Origin)});
  if(event.httpMethod!=="POST")return json(405,{error:"Method tidak diizinkan."});
  const origin=event.headers.origin||event.headers.Origin;
  if(origin&&origin!=="https://rnetstore.netlify.app")return json(403,{error:"Origin tidak diizinkan."});
  const env=process.env;
- for(const key of ["SUPABASE_URL","SUPABASE_ANON_KEY","SUPABASE_SERVICE_ROLE_KEY","TELEGRAM_BOT_TOKEN","TELEGRAM_CHAT_ID"])if(!env[key])return json(500,{error:"Konfigurasi server belum lengkap: "+key});
+ for(const key of ["SUPABASE_URL","SUPABASE_ANON_KEY","SUPABASE_SERVICE_ROLE_KEY","TELEGRAM_BOT_TOKEN","TELEGRAM_CHAT_ID"])if(!env[key]){console.error("[submit-deposit] missing environment variable:",key);return json(500,{error:"Konfigurasi server belum lengkap: "+key});}
  const auth=event.headers.authorization||event.headers.Authorization||"";
  const token=auth.startsWith("Bearer ")?auth.slice(7):"";
  if(!token)return json(401,{error:"Silakan login kembali."});
@@ -42,5 +43,5 @@ exports.handler=async(event)=>{
   const fileId=tgResult.result?.photo?.slice(-1)[0]?.file_id||"sent";
   await fetch(base+"/rest/v1/deposits?id=eq."+encodeURIComponent(deposit.id),{method:"PATCH",headers,body:JSON.stringify({proof_url:"telegram:"+fileId})});
   return json(200,{ok:true,deposit_id:deposit.id,status:"pending"});
- }catch(error){return json(500,{error:"Kesalahan server saat memproses deposit."})}
+ }catch(error){console.error("[submit-deposit] unhandled error:",error?.message||String(error));return json(500,{error:"Kesalahan server saat memproses deposit. Periksa Function log Netlify."})}
 };
